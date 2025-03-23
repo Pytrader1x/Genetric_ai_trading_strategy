@@ -75,7 +75,10 @@ def cal_pop_fitness(equation_inputs, pop, opt=0, penalty_mode=False, penalty_set
         avg_hold = n_timesteps if num_trades == 0 else n_timesteps / num_trades
         
         if penalty_settings['hold']['active'] and avg_hold < penalty_settings['hold']['target']:
-            penalty_hold = 1 + penalty_settings['hold']['beta'] * (penalty_settings['hold']['target'] - avg_hold) / penalty_settings['hold']['target']
+            # Enhanced penalty calculation with exponential factor for severe short-term trading
+            ratio = avg_hold / penalty_settings['hold']['target']
+            # This creates a stronger penalty for very short holds
+            penalty_hold = 1 + penalty_settings['hold']['beta'] * (1 - ratio) * (1 + np.exp(-5 * ratio))
         else:
             penalty_hold = 1.0
         
@@ -240,6 +243,12 @@ def GA_train(training_df, optimizing_selection=0, sol_per_pop=8, num_parents_mat
                 if dd > max_dd:
                     max_dd = dd
             
+            # Calculate average holding period
+            pos_sign = np.sign(position)
+            sign_changes = np.sum(np.abs(np.diff(pos_sign)))
+            num_trades = sign_changes / 2 if sign_changes > 0 else 0
+            avg_hold = len(position) if num_trades == 0 else len(position) / num_trades
+            
             # Print progress
             print(f"{BOLD_GREEN}Generation {generation}/{num_generations} ({generation/num_generations*100:.1f}%){RESET}")
             print(f"{BOLD_CYAN}Best Fitness (SSR):{RESET} {best_fitness:.6f}")
@@ -247,6 +256,8 @@ def GA_train(training_df, optimizing_selection=0, sol_per_pop=8, num_parents_mat
             print(f"{BOLD_CYAN}Annualized Sharpe:{RESET} {annualized_sharpe:.3f}")
             print(f"{BOLD_CYAN}Win Rate:{RESET} {win_rate:.2f}%")
             print(f"{BOLD_CYAN}Max Drawdown:{RESET} {max_dd:.2f}%")
+            print(f"{BOLD_CYAN}Avg Holding Period:{RESET} {avg_hold:.2f} periods")
+            print(f"{BOLD_CYAN}Number of Trades:{RESET} {num_trades:.0f}")
             print("-" * 50)
             
         # Select parents for next generation
